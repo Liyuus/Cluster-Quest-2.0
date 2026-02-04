@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cluster Quest | Encrypted Core</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Outfit:wght@300;600;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --neon: #00f3ff; --error: #ff003c; --glass: rgba(255, 255, 255, 0.03); --border: rgba(255, 255, 255, 0.1); }
+        body { background: url('https://images.unsplash.com/photo-1614850523296-d8c1af93d400?q=80&w=2070&auto=format&fit=crop') center/cover no-repeat fixed; color: white; font-family: 'Outfit', sans-serif; overflow: hidden; height: 100vh; user-select: none; }
+        body::before { content: ""; position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(20px); z-index: -1; }
+
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        @keyframes zenithFloat { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, 15px, 0); } }
+        .startup-animate { animation: zenithFloat 8s infinite ease-in-out; }
+
+        .zenith-card { background: var(--glass); backdrop-filter: blur(30px); border: 1px solid var(--border); border-radius: 24px; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin: 10px; }
+        .zenith-card:hover { border-color: var(--neon); box-shadow: 0 10px 40px rgba(0, 243, 255, 0.15); }
+
+        .drop-zone { min-height: 80px; transition: 0.3s; border: 1px solid transparent; }
+        .drop-zone.drag-over { border: 1px dashed var(--neon); background: rgba(0, 243, 255, 0.05); }
+        .draggable { cursor: grab; user-select: none; transition: opacity 0.3s ease; }
+        .draggable:active { cursor: grabbing; }
+
+        /* Slot Reel Style */
+        .slot-box { position: relative; height: 100px; border: 2px solid var(--neon); border-radius: 15px; overflow: hidden; background: rgba(0,0,0,0.5); }
+        .slot-reel { transition: transform 6s cubic-bezier(0.1, 0, 0.1, 1); }
+        .slot-item { height: 100px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; font-family: 'Orbitron'; color: white; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .slot-item.active { color: var(--neon); text-shadow: 0 0 15px var(--neon); }
+        .slot-gradient { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, black, transparent 20%, transparent 80%, black); }
+
+        .leader-aura { border-color: var(--neon) !important; box-shadow: 0 0 25px rgba(0, 243, 255, 0.4); position: relative; overflow: hidden; }
+        .leader-aura::after { content: "TOP ELITE"; position: absolute; top: 0; right: 20px; background: var(--neon); color: black; font-size: 8px; font-weight: 900; padding: 2px 8px; border-radius: 0 0 8px 8px; }
+
+        @keyframes modalPopIn { 0% { opacity: 0; transform: scale(0.5) rotateX(-30deg); } 100% { opacity: 1; transform: scale(1) rotateX(0); } }
+        @keyframes modalPopOut { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.2); filter: blur(10px); } }
+        .modal-active { animation: modalPopIn 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+        .modal-exit { animation: modalPopOut 0.4s ease-in forwards !important; }
+
+        @keyframes singleImpact { 0% { transform: translateX(-10px); } 20% { transform: translateX(10px); } 40% { transform: translateX(-10px); } 60% { transform: translateX(10px); } 100% { transform: translateX(0); } }
+        .error-impact { animation: singleImpact 0.4s ease-out; border: 2px solid var(--error) !important; }
+        
+        @keyframes popUpText { 0% { opacity: 0; transform: translateY(20px); } 20% { opacity: 1; transform: translateY(-40px); } 80% { opacity: 1; transform: translateY(-60px); } 100% { opacity: 0; transform: translateY(-100px); } }
+        .combat-msg { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); pointer-events: none; z-index: 10000; animation: popUpText 2s forwards; }
+
+        @keyframes tabFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .tab-content-active { animation: tabFade 0.4s ease-out forwards; }
+
+        .scroller::-webkit-scrollbar { width: 4px; }
+        .scroller::-webkit-scrollbar-thumb { background: rgba(0, 243, 255, 0.3); border-radius: 10px; }
+        .screen-hidden { display: none !important; }
+        
+        .fade-content { animation: tabFade 0.3s ease-out; }
+        
+        @keyframes warpDrive { 
+            0% { transform: scale(1); filter: blur(0); opacity: 1; }
+            50% { transform: scale(1.5); filter: blur(10px); opacity: 0.5; }
+            100% { transform: scale(5); filter: blur(50px); opacity: 0; }
+        }
+        .warp-active { animation: warpDrive 0.8s ease-in forwards; pointer-events: none; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div id="loader" class="fixed inset-0 z-[9999] hidden flex flex-col items-center justify-center bg-black font-['Orbitron'] text-cyan-400">
+        <div class="w-24 h-24 border-4 border-t-cyan-400 border-white/10 rounded-full animate-spin mb-8"></div>
+        <div id="loader-text" class="tracking-[0.5em] text-xl animate-pulse uppercase">PROCESSING...</div>
+    </div>
+
+    <div id="modal-overlay" class="fixed inset-0 z-[5000] hidden items-center justify-center bg-black/90 backdrop-blur-3xl" onclick="closeModal()"></div>
+
+    <main id="view-start" class="h-full flex flex-col items-center justify-center pt-20">
+        <div class="zenith-card p-10 w-full max-w-xl startup-animate">
+            <h1 class="text-6xl font-black italic font-['Orbitron'] text-center mb-8 uppercase tracking-tight">CLUSTER<br><span class="text-cyan-400">QUEST</span></h1>
+            <div class="space-y-4">
+                <input id="in-name" type="text" placeholder="Batch Number" class="w-full bg-white/5 border-b border-white/20 p-4 outline-none focus:border-cyan-400 text-white">
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="in-pass" type="password" placeholder="Set Key" class="bg-white/5 border-b border-white/20 p-4 outline-none focus:border-cyan-400 text-white">
+                    <input id="in-pass-conf" type="password" placeholder="Confirm Key" class="bg-white/5 border-b border-white/20 p-4 outline-none focus:border-cyan-400 text-white">
+                </div>
+                <textarea id="in-roster" placeholder="Enter Learners (One per line)..." class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 h-40 outline-none focus:border-cyan-400 resize-none text-white"></textarea>
+                <div class="flex flex-col gap-3">
+                    <button onclick="launchSequence()" class="w-full bg-cyan-500 py-4 rounded-full text-black font-black hover:bg-white transition-all transform active:scale-95">BEGIN QUEST</button>
+                    <div class="flex gap-3">
+                        <button onclick="openQuestArchive()" class="flex-1 bg-white/10 py-3 rounded-full text-[10px] font-black tracking-widest hover:bg-white/20 uppercase">Archives</button>
+                        <button onclick="viewInstructions()" class="flex-1 bg-white/10 py-3 rounded-full text-[10px] font-black tracking-widest hover:bg-white/20 uppercase border border-cyan-400/20">Instructions</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <main id="view-arena" class="screen-hidden h-full flex flex-col max-w-4xl mx-auto">
+        <header class="flex flex-wrap justify-between items-center mb-4 px-4 gap-4">
+            <button onclick="exitToMenu()" class="text-[10px] font-bold opacity-40 hover:opacity-100 hover:text-red-400 tracking-widest transition-all">≪ DISCONNECT</button>
+            <div class="flex flex-wrap bg-white/5 p-1 rounded-full border border-white/10 gap-1">
+                <button onclick="changeTab('cluster')" id="tab-c" class="px-3 md:px-5 py-2 rounded-full text-[9px] font-black">CLUSTERS</button>
+                <button onclick="changeTab('hero')" id="tab-h" class="px-3 md:px-5 py-2 rounded-full text-[9px] font-black">LEARNER</button>
+                <button onclick="changeTab('nick')" id="tab-n" class="px-3 md:px-5 py-2 rounded-full text-[9px] font-black">NICKNAMES</button>
+                <button onclick="changeTab('game')" id="tab-game" class="px-3 md:px-5 py-2 rounded-full text-[9px] font-black">RANDOMIZER</button>
+                <button onclick="changeTab('history')" id="tab-hist" class="px-3 md:px-5 py-2 rounded-full text-[9px] font-black">HISTORY</button>
+                <button onclick="changeTab('leaderboard')" id="tab-lb" class="px-3 md:px-5 py-2 rounded-full text-[9px] font-black">LEADER BOARD</button>
+                <button onclick="changeTab('relay')" id="tab-relay" class="px-3 md:px-5 py-2 rounded-full text-[9px] font-black text-orange-400">RELAY</button>
+            </div>
+            <button onclick="triggerFinishSecurity()" class="bg-white text-black px-8 py-2 rounded-full font-black text-[10px] hover:bg-cyan-400 transition-all">FINISH</button>
+        </header>
+        <div id="arena-content" class="scroller flex-1 overflow-y-auto px-2 pb-10"></div>
+    </main>
+
+    <script>
+        let state = JSON.parse(localStorage.getItem('Zenith_V7')) || { active: {}, deleted: {} };
+        let currentKey = null;
+        let activeTab = 'cluster';
+        let stagingClusters = [];
+        let initialPlayers = [];
+        let heroNameMode = 'nickname';
+        let heroSearchQuery = '';
+        let relaySearchQuery = '';
+        let lastImportState = null;
+
+        const sounds = {
+            transition: new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'),
+            shuffle: new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'),
+            error: new Audio('https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.mp3'),
+            click: new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3'),
+            gain: new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'),
+            loss: new Audio('https://assets.mixkit.co/active_storage/sfx/2020/2020-preview.mp3'),
+            tick: new Audio('https://assets.mixkit.co/active_storage/sfx/1103/1103-preview.mp3'),
+            victory: new Audio('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'),
+            success: new Audio('https://assets.mixkit.co/active_storage/sfx/1433/1433-preview.mp3'),
+            congrats: new Audio('https://assets.mixkit.co/active_storage/sfx/2018/2018-preview.mp3')
+        };
+
+        const playSound = (s) => { if(sounds[s]) { sounds[s].currentTime = 0; sounds[s].play().catch(()=>{}); }};
+        document.addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON') playSound('click'); });
+        const save = () => localStorage.setItem('Zenith_V7', JSON.stringify(state));
+
+        function triggerLoading(text, callback) {
+            playSound('transition');
+            const loader = document.getElementById('loader');
+            const loaderText = document.getElementById('loader-text');
+            loaderText.innerText = text;
+            loader.classList.remove('hidden');
+            setTimeout(() => { loader.classList.add('hidden'); if(callback) callback(); }, 1500);
+        }
+
+        function triggerError(msg) {
+            playSound('error');
+            showModal(`
+                <div id="error-box" class="modal-active zenith-card p-10 text-center error-impact max-w-sm" onclick="event.stopPropagation()">
+                    <h2 class="text-red-500 font-['Orbitron'] font-black text-2xl mb-2">FAILURE</h2>
+                    <p class="text-[10px] opacity-80 tracking-widest uppercase mb-8 text-white">${msg}</p>
+                    <button onclick="closeModal()" class="w-full bg-red-600 py-3 rounded-full text-xs font-black text-white">RETRY</button>
+                </div>
+            `);
+        }
+
+        function showModal(html) {
+            const overlay = document.getElementById('modal-overlay');
+            overlay.innerHTML = `<div class="modal-active flex items-center justify-center w-full h-full p-4">${html}</div>`;
+            overlay.style.display = 'flex';
+        }
+
+        function closeModal() {
+            const overlay = document.getElementById('modal-overlay');
+            const target = overlay.querySelector('.modal-active');
+            if(target) {
+                target.classList.add('modal-exit');
+                setTimeout(() => { overlay.style.display = 'none'; overlay.innerHTML = ""; }, 400);
+            }
+        }
+
+        function viewInstructions() {
+            playSound('transition');
+            document.body.classList.add('warp-active');
+            setTimeout(() => { window.location.href = 'welcome.html'; }, 800);
+        }
+
+        function launchSequence() {
+            const roster = document.getElementById('in-roster').value.trim();
+            const pass = document.getElementById('in-pass').value;
+            const conf = document.getElementById('in-pass-conf').value;
+            if(!roster || pass !== conf || pass.length < 1) { triggerError("FIELD ERROR OR KEY MISMATCH"); return; }
+            initialPlayers = roster.split('\n').filter(n => n.trim()).map(n => ({ 
+                id: 'p-'+Math.random().toString(36).substr(2,5), 
+                name: n.trim(), nickname: n.trim(), score: 0, changeCount: 0 
+            }));
+            initShuffleRoom(true);
+        }
+
+        function handleDragStart(e, pid) { e.dataTransfer.setData("text/plain", pid); }
+        function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+        function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+        
+        function handleDrop(e, targetCid) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            const pid = e.dataTransfer.getData("text/plain");
+            let playerObj;
+            stagingClusters.forEach(c => {
+                const idx = c.members.findIndex(m => m.id === pid);
+                if(idx !== -1) playerObj = c.members.splice(idx, 1)[0];
+            });
+            if(playerObj) {
+                stagingClusters.find(c => c.id === targetCid).members.push(playerObj);
+                updateMultipliers();
+                refreshShuffleGrid();
+            }
+        }
+
+        function updateMultipliers() {
+            const maxTeam = Math.max(...stagingClusters.map(cl => cl.members.length));
+            stagingClusters.forEach(c => {
+                c.multiplier = (c.members.length > 0 && maxTeam > 0) ? parseFloat((maxTeam / c.members.length).toFixed(2)) : 1;
+            });
+        }
+
+        function initShuffleRoom(isFirstLoad = false) {
+            const countInput = document.getElementById('cluster-count');
+            let count = countInput ? parseInt(countInput.value) : 2;
+            if(count > initialPlayers.length) count = initialPlayers.length;
+            if(count < 1) count = 1;
+            playSound('shuffle');
+            stagingClusters = Array.from({length: count}, (_, i) => ({ id: i+1, members: [], multiplier: 1 }));
+            const shuffled = [...initialPlayers].sort(() => Math.random() - 0.5);
+            shuffled.forEach((p, i) => stagingClusters[i % count].members.push(p));
+            updateMultipliers();
+            if(isFirstLoad) renderShuffleFrame(); else refreshShuffleGrid();
+        }
+
+        function renderShuffleFrame() {
+            showModal(`
+                <div id="shuffle-container" class="zenith-card p-8 max-w-4xl w-full flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] text-cyan-400 text-xl mb-4 text-center tracking-[0.3em]">DIVISION STAGING</h2>
+                    <div class="flex items-center justify-center gap-4 mb-6 bg-white/5 p-4 rounded-xl">
+                        <span class="text-[10px] uppercase opacity-40 text-white">Cluster Count:</span>
+                        <input id="cluster-count" type="number" min="1" max="${initialPlayers.length}" value="${stagingClusters.length}" 
+                               onkeydown="if(event.key==='Enter') initShuffleRoom(false)" 
+                               class="bg-cyan-500/10 border border-cyan-500/30 w-16 text-center font-bold py-1 rounded outline-none text-white">
+                    </div>
+                    <div id="shuffle-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 overflow-y-auto scroller mb-8 px-2"></div>
+                    <div class="flex flex-col gap-3">
+                        <button onclick="initShuffleRoom(false)" class="w-full bg-white/10 py-4 rounded-full font-bold text-[10px] hover:bg-white/20 uppercase tracking-widest text-white">Re-Shuffle Matrix</button>
+                        <button onclick="finalizeStart()" class="w-full bg-cyan-500 py-4 rounded-full text-black font-black text-xs uppercase tracking-widest">Confirm Final Division</button>
+                    </div>
+                </div>
+            `);
+            refreshShuffleGrid();
+        }
+
+        function refreshShuffleGrid() {
+            const grid = document.getElementById('shuffle-grid');
+            if(!grid) return;
+            grid.innerHTML = stagingClusters.map(c => `
+                <div class="bg-white/5 p-4 rounded-xl border border-white/5 drop-zone fade-content" 
+                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, ${c.id})">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="text-[9px] text-cyan-400 font-bold italic">CLUSTER ${c.id}</div>
+                        <div class="text-[9px] bg-cyan-400/20 px-2 rounded text-cyan-400">x${c.multiplier}</div>
+                    </div>
+                    <div class="space-y-1">${c.members.map(m => `
+                        <div draggable="true" ondragstart="handleDragStart(event, '${m.id}')" 
+                             class="draggable text-[11px] opacity-70 text-white bg-white/5 p-1 px-2 rounded hover:bg-white/10 transition-all border border-transparent hover:border-cyan-400/30">
+                             ${m.name}
+                        </div>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function finalizeStart() {
+            const name = document.getElementById('in-name').value.trim() || "UNNAMED EXPEDITION";
+            const pass = document.getElementById('in-pass').value;
+            const key = 'q-' + Date.now();
+            state.active[key] = { name, clusters: stagingClusters, pass, history: [], date: new Date().toLocaleDateString() };
+            currentKey = key; save(); closeModal();
+            triggerLoading("ESTABLISHING NEURAL LINK...", () => {
+                document.getElementById('view-start').classList.add('screen-hidden');
+                document.getElementById('view-arena').classList.remove('screen-hidden');
+                changeTab('cluster');
+            });
+        }
+
+        function changeTab(t) {
+            playSound('transition');
+            activeTab = t;
+            const tabIds = ['tab-c', 'tab-h', 'tab-n', 'tab-lb', 'tab-hist', 'tab-game', 'tab-relay'];
+            tabIds.forEach(id => {
+                const btn = document.getElementById(id);
+                if(btn) { btn.classList.add('opacity-40'); btn.classList.remove('bg-cyan-500', 'text-black'); }
+            });
+            const mapping = { cluster:'tab-c', hero:'tab-h', nick:'tab-n', history:'tab-hist', game:'tab-game', leaderboard:'tab-lb', relay:'tab-relay' };
+            const activeBtn = document.getElementById(mapping[t]);
+            if(activeBtn) { activeBtn.classList.remove('opacity-40'); activeBtn.classList.add('bg-cyan-500', 'text-black'); }
+            
+            const arena = document.getElementById('arena-content');
+            arena.classList.remove('tab-content-active');
+            void arena.offsetWidth;
+            arena.classList.add('tab-content-active');
+            renderArena();
+        }
+
+        function renderArena() {
+            const q = state.active[currentKey];
+            const content = document.getElementById('arena-content');
+            content.innerHTML = "";
+
+            if(activeTab === 'cluster') {
+                q.clusters.forEach(c => {
+                    const rawTotal = c.members.reduce((s,m)=>s+m.score,0);
+                    const multipliedTotal = Math.round(rawTotal * c.multiplier);
+                    content.innerHTML += `
+                        <div class="zenith-card p-6 mb-4">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h3 class="text-2xl font-black italic font-['Orbitron']">CLUSTER ${c.id}</h3>
+                                    <div class="text-[10px] text-cyan-400/50 mt-1 uppercase font-bold">Multiplier: x${c.multiplier}</div>
+                                    <button onclick="viewClusterMembers(${c.id})" class="text-[10px] font-bold border border-white/10 px-4 py-1 rounded-full hover:bg-white/10 mt-3 text-white">VIEW MEMBERS</button>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-4xl font-black text-cyan-400">${multipliedTotal}</div>
+                                    <div class="text-[9px] opacity-40 text-white mb-2">RAW: ${rawTotal}</div>
+                                    <div class="flex gap-2 mt-2">
+                                        <button onclick="openPointAction(true, 'cluster', ${c.id}, 'Cluster ${c.id}')" class="bg-red-500/10 text-red-500 px-3 py-1 rounded-full text-[8px] font-bold">MIN</button>
+                                        <button onclick="openPointAction(false, 'cluster', ${c.id}, 'Cluster ${c.id}')" class="bg-white text-black px-4 py-1 rounded-full font-black text-[8px]">ADD XP</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+            } else if(activeTab === 'hero') {
+                const heroes = q.clusters.flatMap(c => c.members.map(m => ({...m, cid: c.id})))
+                            .filter(h => h.name.toLowerCase().includes(heroSearchQuery.toLowerCase()) || h.nickname.toLowerCase().includes(heroSearchQuery.toLowerCase()))
+                            .sort((a,b) => b.score - a.score);
+                
+                content.innerHTML = `
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 px-2">
+                        <input type="text" id="hero-search-bar" value="${heroSearchQuery}" oninput="heroSearchQuery = this.value; renderArena(); document.getElementById('hero-search-bar').focus();" placeholder="Search Unit..." class="w-full md:w-64 bg-white/5 border border-white/10 rounded-full px-5 py-2 text-[10px] outline-none focus:border-cyan-400 text-white uppercase tracking-widest">
+                        <button onclick="toggleNameMode()" class="text-[9px] font-black border border-cyan-400/30 px-6 py-2 rounded-full text-white uppercase tracking-widest transition-all">MODE: ${heroNameMode}</button>
+                    </div>
+                    <div id="hero-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3 fade-content">${heroes.map(h => `
+                    <div class="zenith-card p-6 flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-sm uppercase text-white">${heroNameMode === 'nickname' ? (h.nickname || h.name) : h.name}</div>
+                            <div class="text-[9px] opacity-30 italic text-white">${heroNameMode === 'nickname' ? h.name : h.nickname}</div>
+                        </div>
+                        <div class="flex items-center gap-3"><span class="text-xl font-black text-cyan-400">${h.score}</span><div class="flex flex-col gap-1">
+                        <button onclick="openPointAction(false, 'player', '${h.id}', '${h.nickname || h.name}')" class="text-[8px] font-black bg-white/10 px-2 py-1 rounded text-white">ADD</button>
+                        <button onclick="openPointAction(true, 'player', '${h.id}', '${h.nickname || h.name}')" class="text-[8px] font-black bg-red-500/10 text-red-400 px-2 py-1 rounded">MIN</button></div></div>
+                    </div>`).join('')}</div>`;
+                const searchBar = document.getElementById('hero-search-bar');
+                if(searchBar) {
+                    searchBar.focus();
+                    searchBar.setSelectionRange(heroSearchQuery.length, heroSearchQuery.length);
+                }
+            } else if(activeTab === 'nick') {
+                const heroes = q.clusters.flatMap(c => c.members.map(m => ({...m, cid: c.id})));
+                content.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        ${heroes.map(h => `
+                        <div class="zenith-card p-6">
+                            <div class="text-[9px] opacity-30 uppercase mb-2 text-white">Registry: ${h.name}</div>
+                            <input type="text" id="nick-in-${h.id}" value="${h.nickname}" class="w-full bg-white/5 border-b border-white/10 p-2 text-white outline-none focus:border-cyan-400">
+                        </div>`).join('')}
+                    </div>
+                    <button onclick="saveAllNicknames()" class="w-full bg-cyan-500 text-black py-4 rounded-full font-black text-xs tracking-widest">SYNC ALL NICKNAMES</button>`;
+            } else if(activeTab === 'history') {
+                content.innerHTML = `<div class="zenith-card p-8"><div class="space-y-3">${q.history.map(h => `
+                    <div class="flex justify-between items-center text-[10px] bg-white/5 p-3 rounded-lg border-l-2 ${h.amount === 'EXPORT' ? 'border-orange-500' : (typeof h.amount === 'string' || h.amount >= 0 ? 'border-cyan-500' : 'border-red-500')}">
+                        <div class="flex flex-col"><span class="opacity-60 text-white font-bold">${h.date}</span><span class="opacity-30 text-white">${h.time}</span></div>
+                        <span class="font-bold uppercase text-white text-center flex-1">${h.target}</span>
+                        <span class="${h.amount === 'EXPORT' ? 'text-orange-400' : (typeof h.amount === 'string' || h.amount >= 0 ? 'text-cyan-400' : 'text-red-500')} font-black">${typeof h.amount === 'number' && h.amount > 0 ? '+'+h.amount : h.amount}</span>
+                    </div>`).join('') || '<p class="text-center opacity-20 py-10">NO LOGS FOUND</p>'}</div></div>`;
+            } else if(activeTab === 'game') {
+                content.innerHTML = `
+                    <div class="flex flex-col items-center justify-center pt-10">
+                        <h2 class="font-['Orbitron'] text-cyan-400 text-xl mb-8 tracking-[0.5em] uppercase">Selection Matrix</h2>
+                        <div class="slot-box w-full max-w-sm mb-10"><div id="reel" class="slot-reel"></div><div class="slot-gradient"></div></div>
+                        <button onclick="startRandomizer()" id="spin-btn" class="bg-cyan-500 px-12 py-5 rounded-full text-black font-black uppercase text-xs tracking-widest hover:bg-white transition-all">Initialize Roll</button>
+                    </div>`;
+                setupReel();
+            } else if(activeTab === 'leaderboard') {
+                const topC = [...q.clusters].sort((a,b) => (b.members.reduce((s,m)=>s+m.score,0)*b.multiplier) - (a.members.reduce((s,m)=>s+m.score,0)*a.multiplier));
+                const topH = q.clusters.flatMap(c => c.members).sort((a,b) => b.score - a.score).slice(0, 10);
+                content.innerHTML = `
+                    <div class="max-w-2xl mx-auto space-y-12">
+                        <div><h4 class="text-yellow-500 font-['Orbitron'] text-2xl font-black mb-4">SUPREME CLUSTERS</h4>
+                        ${topC.map((c, i) => `<div class="zenith-card p-6 mb-3 border-l-4 border-yellow-500/50 flex justify-between"><span class="font-black text-white">#${i+1} CLUSTER ${c.id}</span><span class="text-2xl font-black text-white">${Math.round(c.members.reduce((s,m)=>s+m.score,0)*c.multiplier)}</span></div>`).join('')}</div>
+                        <div><h4 class="text-cyan-400 font-['Orbitron'] text-2xl font-black mb-4">ELITE LEARNERS</h4>
+                        ${topH.map((h, i) => `<div class="zenith-card p-6 mb-3 ${i===0?'leader-aura':''} border-l-4 border-cyan-400/50 flex justify-between"><span class="font-bold text-white">#${i+1} ${h.nickname || h.name}</span><span class="text-2xl font-black text-cyan-400">${h.score}</span></div>`).join('')}</div>
+                    </div>`;
+            } else if(activeTab === 'relay') {
+                renderRelayTab();
+            }
+        }
+
+        function toggleNameMode() {
+            const grid = document.getElementById('hero-grid');
+            if(grid) grid.style.opacity = '0';
+            setTimeout(() => {
+                heroNameMode = (heroNameMode === 'nickname' ? 'original' : 'nickname');
+                renderArena();
+            }, 300);
+        }
+
+        function exportPoints() {
+            const q = state.active[currentKey];
+            const exportData = q.clusters.flatMap(c => c.members.map(m => ({ name: m.name, nickname: m.nickname, score: m.score })))
+                                .sort((a,b) => b.score - a.score);
+            
+            q.history.unshift({ 
+                date: new Date().toLocaleDateString(), 
+                time: new Date().toLocaleTimeString(), 
+                target: "CORE DATA", 
+                amount: "EXPORT", 
+                note: "JSON ARCHIVE CREATED" 
+            });
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `QUEST_EXPORT_${q.name.replace(/\s+/g, '_')}.json`;
+            a.click();
+            playSound('success');
+            save();
+            renderArena();
+        }
+
+        function triggerImport() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        const importedData = JSON.parse(event.target.result);
+                        processImport(importedData);
+                    } catch(err) { triggerError("INVALID FILE FORMAT"); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function processImport(data) {
+            const q = state.active[currentKey];
+            lastImportState = JSON.parse(JSON.stringify(q.clusters));
+            let count = 0;
+            data.forEach(item => {
+                q.clusters.forEach(c => {
+                    const hero = c.members.find(m => m.name === item.name);
+                    if(hero) {
+                        const pointsToAdd = parseInt(item.score) || 0;
+                        hero.score += pointsToAdd;
+                        count++;
+                        q.history.unshift({ 
+                            date: new Date().toLocaleDateString(), 
+                            time: new Date().toLocaleTimeString(), 
+                            target: hero.nickname || hero.name, 
+                            amount: pointsToAdd, 
+                            note: "IMPORTED FROM FILE" 
+                        });
+                    }
+                });
+            });
+            
+            q.history.unshift({ 
+                date: new Date().toLocaleDateString(), 
+                time: new Date().toLocaleTimeString(), 
+                target: "IMPORT SEQUENCE", 
+                amount: "SYNC", 
+                note: `PROCESSED ${count} UNITS` 
+            });
+
+            save();
+            renderArena();
+            playSound('congrats');
+            confetti({ particleCount: 200, spread: 80 });
+            triggerCombatText(`IMPORTED ${count} UNITS`, false);
+        }
+
+        function confirmReverseImport() {
+            if(!lastImportState) { triggerError("NO IMPORT DATA TO REVERSE"); return; }
+            showModal(`
+                <div class="zenith-card p-10 w-full max-w-sm text-center" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] font-black text-xl mb-4 text-red-500">REVERSE IMPORT</h2>
+                    <p class="text-sm mb-8 text-white">This will restore all scores to the state <span class="text-red-500 font-bold">BEFORE</span> the last import. Are you sure?</p>
+                    <div class="flex gap-2">
+                        <button onclick="executeReverseImport()" class="flex-1 bg-red-600 py-3 rounded-full text-white font-black text-xs">REVERSE</button>
+                        <button onclick="closeModal()" class="flex-1 bg-white/10 py-3 rounded-full text-white font-black text-xs">CANCEL</button>
+                    </div>
+                </div>
+            `);
+        }
+
+        function executeReverseImport() {
+            const q = state.active[currentKey];
+            q.clusters = JSON.parse(JSON.stringify(lastImportState));
+            lastImportState = null;
+            q.history.unshift({ 
+                date: new Date().toLocaleDateString(), 
+                time: new Date().toLocaleTimeString(), 
+                target: "SYSTEM", 
+                amount: "REVERSE", 
+                note: "IMPORT UNDONE" 
+            });
+            save(); closeModal(); renderArena(); playSound('loss');
+        }
+
+        function openPointAction(isDeduct, type, id, name) {
+            playSound('transition');
+            const presets = [5, 10, 20, 50];
+            const presetHtml = presets.map(p => `<button onclick="confirmPointTransmit(${isDeduct}, '${type}', '${id}', '${name}', ${p})" class="bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-2 rounded-lg text-[10px] font-bold text-white">+${p}</button>`).join('');
+            showModal(`
+                <div class="zenith-card p-10 w-full max-w-md text-center" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] font-black text-xl mb-1 ${isDeduct ? 'text-red-500' : 'text-cyan-400'}">${isDeduct ? 'PENALTY' : 'GRANT XP'}</h2>
+                    <p class="text-[10px] opacity-30 mb-6 uppercase text-white">${name}</p>
+                    <input id="point-in" type="number" placeholder="0" autofocus class="w-full bg-transparent text-center text-7xl font-black outline-none mb-4 text-white">
+                    <div class="flex justify-center gap-2 mb-8">${presetHtml}</div>
+                    <button onclick="confirmPointTransmit(${isDeduct}, '${type}', '${id}', '${name}', parseInt(document.getElementById('point-in').value))" class="w-full bg-white text-black py-4 rounded-full font-black text-xs">TRANSMIT DATA</button>
+                </div>
+            `);
+        }
+
+        function confirmPointTransmit(isDeduct, type, id, name, val) {
+            if(!val || val <= 0) { triggerError("INVALID DATA"); return; }
+            showModal(`
+                <div class="zenith-card p-10 w-full max-w-sm text-center" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] font-black text-xl mb-4 text-white">CONFIRM ACTION</h2>
+                    <p class="text-sm mb-8 text-white">Do you wish to <span class="${isDeduct?'text-red-500':'text-cyan-400'} font-bold">${isDeduct?'DEDUCT':'ADD'} ${val} XP</span> for <br><span class="opacity-60 italic">${name}</span>?</p>
+                    <div class="flex gap-2">
+                        <button onclick="executePoints(${isDeduct}, '${type}', '${id}', '${name}', ${val})" class="flex-1 bg-cyan-500 py-3 rounded-full text-black font-black text-xs">YES</button>
+                        <button onclick="closeModal()" class="flex-1 bg-white/10 py-3 rounded-full text-white font-black text-xs">CANCEL</button>
+                    </div>
+                </div>
+            `);
+        }
+
+        function executePoints(isDeduct, type, id, name, val) {
+            const q = state.active[currentKey];
+            const baseVal = isDeduct ? -val : val;
+
+            if(type === 'cluster') {
+                const cluster = q.clusters.find(c => c.id == id);
+                if(cluster && cluster.members.length > 0) {
+                    const perMember = Math.floor(baseVal / cluster.members.length);
+                    cluster.members.forEach(m => m.score += perMember);
+                    
+                    q.history.unshift({ 
+                        date: new Date().toLocaleDateString(), 
+                        time: new Date().toLocaleTimeString(), 
+                        target: name, 
+                        amount: baseVal, 
+                        note: "CLUSTER REWARD" 
+                    });
+                }
+            } else {
+                q.clusters.forEach(c => { 
+                    const h = c.members.find(x => x.id === id); 
+                    if(h) {
+                        h.score += baseVal;
+                        q.history.unshift({ 
+                            date: new Date().toLocaleDateString(), 
+                            time: new Date().toLocaleTimeString(), 
+                            target: h.nickname || h.name, 
+                            amount: baseVal, 
+                            note: isDeduct ? "DEBUFF" : "XP GAIN" 
+                        });
+                    }
+                });
+            }
+            
+            isDeduct ? playSound('loss') : playSound('gain');
+            save(); closeModal(); renderArena();
+            triggerCombatText(baseVal, isDeduct);
+        }
+
+        function triggerCombatText(amt, isDeduct) {
+            const msgs = isDeduct ? ["CRITICAL!", "WEAKNESS!", "FAILURE!"] : ["EXCELLENT!", "SUPREME!", "LEVEL UP!"];
+            const msg = msgs[Math.floor(Math.random()*msgs.length)];
+            const div = document.createElement('div');
+            div.className = 'combat-msg text-center';
+            const displayAmt = typeof amt === 'number' ? (amt >= 0 ? '+' + amt : amt) : amt;
+            div.innerHTML = `<div class="font-['Orbitron'] font-black ${isDeduct ? 'text-red-500' : 'text-cyan-400'} text-4xl mb-2">${msg}</div><div class="text-6xl font-black text-white">${displayAmt}</div>`;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 2000);
+        }
+
+        function saveAllNicknames() {
+            const q = state.active[currentKey];
+            let hasChanges = false;
+            q.clusters.forEach(c => {
+                c.members.forEach(hero => {
+                    const input = document.getElementById(`nick-in-${hero.id}`);
+                    if (input && input.value.trim() && input.value.trim() !== hero.nickname) {
+                        hero.nickname = input.value.trim();
+                        hasChanges = true;
+                    }
+                });
+            });
+
+            if(hasChanges) { 
+                triggerLoading("ESTABLISHING NEURAL LINK...", () => {
+                    save(); 
+                    playSound('success'); 
+                    renderArena();
+                });
+            } else {
+                triggerError("NO CHANGES DETECTED");
+            }
+        }
+
+        // --- FIXED RANDOMIZER LOGIC ---
+
+        function setupReel() {
+            const reel = document.getElementById('reel');
+            const pool = state.active[currentKey].clusters.flatMap(c => c.members);
+            if(pool.length === 0) return;
+            
+            // Build a very long list for the scrolling effect (200 items)
+            let itemsHtml = "";
+            for(let i = 0; i < 200; i++) {
+                const p = pool[i % pool.length];
+                itemsHtml += `<div class="slot-item">${p.nickname || p.name}</div>`;
+            }
+            
+            reel.innerHTML = itemsHtml;
+            reel.style.transition = "none";
+            reel.style.transform = "translateY(0)";
+        }
+
+        function startRandomizer() {
+            const btn = document.getElementById('spin-btn');
+            const reel = document.getElementById('reel');
+            const pool = state.active[currentKey].clusters.flatMap(c => c.members);
+            
+            if(pool.length === 0) { triggerError("NO UNITS FOUND"); return; }
+            
+            // 1. Reset Visual State
+            btn.disabled = true; 
+            btn.style.opacity = '0.2';
+            reel.style.transition = "none";
+            reel.style.transform = "translateY(0)";
+            
+            const allItems = reel.querySelectorAll('.slot-item');
+            allItems.forEach(i => i.classList.remove('active'));
+
+            // 2. Select Winner and Synchronized Index
+            // We use a base buffer (e.g., 150 items) to ensure a long spin.
+            const winnerIdx = Math.floor(Math.random() * pool.length);
+            const baseBuffer = 150;
+            const finalLandingIndex = baseBuffer + winnerIdx;
+            const winner = pool[winnerIdx];
+            
+            // 3. Force Reflow to apply reset before animation
+            void reel.offsetHeight; 
+            
+            // 4. Start Animation
+            const offset = finalLandingIndex * 100; // Each item is 100px high
+            
+            setTimeout(() => {
+                reel.style.transition = "transform 6s cubic-bezier(0.1, 0, 0.1, 1)";
+                reel.style.transform = `translateY(-${offset}px)`;
+                playSound('shuffle');
+            }, 50);
+            
+            // 5. Completion Logic (Wait for animation finish)
+            setTimeout(() => {
+                // Glow effect on the exact item index we calculated
+                if(allItems[finalLandingIndex]) {
+                    allItems[finalLandingIndex].classList.add('active');
+                }
+                
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                playSound('victory');
+                
+                // Show Result Modal with the exact Winner object selected in Step 2
+                showModal(`
+                    <div class="zenith-card p-12 text-center max-w-sm border-cyan-400" onclick="event.stopPropagation()">
+                        <div class="text-[10px] tracking-[0.5em] text-cyan-400 mb-4 uppercase">Unit Selected</div>
+                        <h2 class="font-['Orbitron'] font-black text-3xl mb-8 text-white uppercase">${winner.nickname || winner.name}</h2>
+                        <button onclick="closeModal()" class="w-full bg-cyan-500 py-4 rounded-full text-black font-black text-xs uppercase">Acknowledge</button>
+                    </div>
+                `);
+                
+                btn.disabled = false; 
+                btn.style.opacity = '1';
+            }, 6200);
+        }
+
+        // --- END FIXED RANDOMIZER LOGIC ---
+
+        function openQuestArchive() {
+            showModal(`
+                <div class="zenith-card p-8 w-full max-w-lg flex flex-col max-h-[80vh]" onclick="event.stopPropagation()">
+                    <div class="flex gap-4 mb-6 border-b border-white/10">
+                        <button onclick="renderArchiveTab('active')" id="btn-arch-active" class="pb-2 text-cyan-400 font-bold text-xs uppercase border-b-2 border-cyan-400">Active Cores</button>
+                        <button onclick="renderArchiveTab('deleted')" id="btn-arch-deleted" class="pb-2 text-white/40 font-bold text-xs uppercase border-b-2 border-transparent">Recently Deleted</button>
+                    </div>
+                    <div id="archive-list" class="scroller overflow-y-auto space-y-3 mb-6 flex-1"></div>
+                    <button onclick="closeModal()" class="w-full bg-white/10 py-4 rounded-full text-[10px] font-black uppercase text-white">Close</button>
+                </div>
+            `);
+            renderArchiveTab('active');
+        }
+
+        function renderArchiveTab(tab) {
+            const list = document.getElementById('archive-list');
+            const btnActive = document.getElementById('btn-arch-active');
+            const btnDeleted = document.getElementById('btn-arch-deleted');
+
+            if(tab === 'active') {
+                btnActive.className = "pb-2 text-cyan-400 font-bold text-xs uppercase border-b-2 border-cyan-400";
+                btnDeleted.className = "pb-2 text-white/40 font-bold text-xs uppercase border-b-2 border-transparent";
+                const keys = Object.keys(state.active);
+                list.innerHTML = keys.map(k => `
+                    <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5">
+                        <span class="text-sm font-bold text-white">${state.active[k].name}</span>
+                        <div class="flex gap-2">
+                            <button onclick="openEncryptedQuest('${k}')" class="bg-cyan-500 text-black px-4 py-2 rounded-full text-[10px] font-black">DECRYPT</button>
+                            <button onclick="confirmMoveToDelete('${k}')" class="bg-red-500/20 text-red-500 border border-red-500 px-3 py-2 rounded-full text-[10px] font-black">✕</button>
+                        </div>
+                    </div>
+                `).join('') || '<p class="text-center opacity-20 py-10 uppercase text-white">No active cores</p>';
+            } else {
+                btnDeleted.className = "pb-2 text-cyan-400 font-bold text-xs uppercase border-b-2 border-cyan-400";
+                btnActive.className = "pb-2 text-white/40 font-bold text-xs uppercase border-b-2 border-transparent";
+                const keys = Object.keys(state.deleted || {});
+                list.innerHTML = keys.map(k => `
+                    <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5">
+                        <span class="text-sm font-bold text-white/60">${state.deleted[k].name}</span>
+                        <div class="flex gap-2">
+                            <button onclick="restoreCore('${k}')" class="bg-white/10 text-white px-4 py-2 rounded-full text-[10px] font-black">RESTORE</button>
+                            <button onclick="confirmPermanentDelete('${k}')" class="bg-red-500 text-white px-3 py-2 rounded-full text-[10px] font-black uppercase">Purge</button>
+                        </div>
+                    </div>
+                `).join('') || '<p class="text-center opacity-20 py-10 uppercase text-white">Trash is empty</p>';
+            }
+        }
+
+        function confirmMoveToDelete(k) {
+            showModal(`
+                <div class="zenith-card p-10 text-center max-w-sm" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] font-black text-xl mb-4 text-red-500">CONFIRM DELETION</h2>
+                    <p class="text-xs mb-8 text-white opacity-70">Move <span class="text-white font-bold">${state.active[k].name}</span> to Recently Deleted? Enter MASTER KEY to authorize.</p>
+                    <input id="del-master-key" type="password" placeholder="MASTER KEY" class="w-full bg-white/5 border-b border-red-500 p-4 text-center outline-none mb-8 text-white">
+                    <div class="flex gap-2">
+                        <button onclick="moveToDeleted('${k}')" class="flex-1 bg-red-600 py-3 rounded-full text-white font-black text-xs">DELETE</button>
+                        <button onclick="openQuestArchive()" class="flex-1 bg-white/10 py-3 rounded-full text-white font-black text-xs">CANCEL</button>
+                    </div>
+                </div>
+            `);
+        }
+
+        function moveToDeleted(k) {
+            const key = document.getElementById('del-master-key').value;
+            if(key === "delete") {
+                if(!state.deleted) state.deleted = {};
+                state.deleted[k] = state.active[k];
+                delete state.active[k];
+                save();
+                openQuestArchive();
+            } else {
+                triggerError("INVALID MASTER KEY");
+            }
+        }
+
+        function restoreCore(k) {
+            state.active[k] = state.deleted[k];
+            delete state.deleted[k];
+            save();
+            renderArchiveTab('deleted');
+        }
+
+        function confirmPermanentDelete(k) {
+            showModal(`
+                <div class="zenith-card p-10 text-center max-w-sm" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] font-black text-xl mb-4 text-red-600">PERMANENT PURGE</h2>
+                    <p class="text-xs mb-8 text-white opacity-70">AUTHORIZE PERMANENT DESTRUCTION OF<br><span class="text-white font-bold">${state.deleted[k].name}</span></p>
+                    <input id="purge-master-key" type="password" placeholder="MASTER KEY" class="w-full bg-white/5 border-b border-red-600 p-4 text-center outline-none mb-8 text-white">
+                    <div class="flex gap-2">
+                        <button onclick="permanentDelete('${k}')" class="flex-1 bg-red-800 py-3 rounded-full text-white font-black text-xs">PURGE</button>
+                        <button onclick="openQuestArchive()" class="flex-1 bg-white/10 py-3 rounded-full text-white font-black text-xs">CANCEL</button>
+                    </div>
+                </div>
+            `);
+        }
+
+        function permanentDelete(k) {
+            const key = document.getElementById('purge-master-key').value;
+            if(key === "delete") {
+                delete state.deleted[k];
+                save();
+                openQuestArchive();
+            } else {
+                triggerError("INVALID MASTER KEY");
+            }
+        }
+
+        function openEncryptedQuest(k) {
+            showModal(`
+                <div class="zenith-card p-10 text-center max-w-sm" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] font-black text-xl mb-6 text-white">IDENTITY VERIFICATION</h2>
+                    <input id="unlock-pass" type="password" placeholder="ENTER KEY" autofocus onkeydown="if(event.key==='Enter') verifyKey('${k}')" class="w-full bg-white/5 border-b border-cyan-400 p-4 text-center outline-none mb-8 text-white">
+                    <button onclick="verifyKey('${k}')" class="w-full bg-cyan-500 py-3 rounded-full text-black font-black text-xs">DECRYPT</button>
+                </div>
+            `);
+        }
+
+        function verifyKey(k) {
+            if(document.getElementById('unlock-pass').value === state.active[k].pass) {
+                currentKey = k; closeModal();
+                triggerLoading("DECRYPTING...", () => {
+                    document.getElementById('view-start').classList.add('screen-hidden');
+                    document.getElementById('view-arena').classList.remove('screen-hidden');
+                    changeTab('cluster');
+                });
+            } else triggerError("ACCESS DENIED");
+        }
+
+        function triggerFinishSecurity() {
+            playSound('congrats');
+            showModal(`
+                <div class="zenith-card p-10 text-center max-w-sm" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] font-black text-xl mb-6 text-red-500">TERMINATION LOCK</h2>
+                    <input id="finish-pass" type="password" placeholder="CONFIRM KEY" autofocus onkeydown="if(event.key==='Enter') verifyFinishKey()" class="w-full bg-white/5 border-b border-red-500 p-4 text-center outline-none mb-8 text-white">
+                    <button onclick="verifyFinishKey()" class="w-full bg-red-600 py-3 rounded-full text-white font-black text-xs">FINALIZE MISSION</button>
+                </div>
+            `);
+        }
+
+        function verifyFinishKey() {
+            if(document.getElementById('finish-pass').value === state.active[currentKey].pass) {
+                let timer = 3;
+                showModal(`<div class="text-center" onclick="event.stopPropagation()"><div id="cd" class="text-9xl font-['Orbitron'] font-black text-cyan-400 animate-bounce">${timer}</div></div>`);
+                const itv = setInterval(() => {
+                    if(--timer > 0) { playSound('tick'); document.getElementById('cd').innerText = timer; }
+                    else { clearInterval(itv); showWinners(); }
+                }, 1000);
+            } else triggerError("INVALID SECURITY KEY");
+        }
+
+        function showWinners() {
+            const q = state.active[currentKey];
+            let mvp = { name: 'None', score: -1 }, topC = { id: 0, score: -1 };
+            q.clusters.forEach(c => {
+                let total = Math.round(c.members.reduce((s,m)=>s+m.score,0) * c.multiplier);
+                c.members.forEach(m => { if(m.score > mvp.score) mvp = m; });
+                if(total > topC.score) topC = { id: c.id, score: total };
+            });
+            confetti({ particleCount: 300, spread: 100, origin: { y: 0.6 } });
+            showModal(`
+                <div class="zenith-card p-12 text-center max-w-2xl border-yellow-500" onclick="event.stopPropagation()">
+                    <div class="text-7xl mb-4">🏆</div>
+                    <h1 class="text-5xl font-['Orbitron'] font-black mb-10 italic text-white uppercase">Mission Complete</h1>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                        <div class="p-8 bg-white/5 rounded-3xl border border-cyan-500/30">
+                            <div class="text-[10px] opacity-40 mb-2 uppercase text-white">Supreme Cluster</div>
+                            <div class="text-3xl font-black text-cyan-400 italic">CLUSTER ${topC.id}</div>
+                        </div>
+                        <div class="p-8 bg-white/5 rounded-3xl border border-yellow-500/30">
+                            <div class="text-[10px] opacity-40 mb-2 uppercase text-white">Grand Champion</div>
+                            <div class="text-3xl font-black text-yellow-500 italic">${mvp.nickname || mvp.name}</div>
+                        </div>
+                    </div>
+                    <button onclick="exitToMenu()" class="w-full bg-white text-black py-5 rounded-full font-black text-xs uppercase">Terminate Link</button>
+                </div>
+            `);
+        }
+
+        function renderRelayTab() {
+            const q = state.active[currentKey];
+            const content = document.getElementById('arena-content');
+            const heroes = q.clusters.flatMap(c => c.members)
+                            .filter(h => h.name.toLowerCase().includes(relaySearchQuery.toLowerCase()) || h.nickname.toLowerCase().includes(relaySearchQuery.toLowerCase()))
+                            .sort((a,b) => b.score - a.score);
+
+            content.innerHTML = `
+                <div class="zenith-card p-8">
+                    <div class="flex flex-col md:flex-row justify-between gap-4 mb-8">
+                        <button onclick="exportPoints()" class="flex-1 bg-orange-500 text-black px-8 py-3 rounded-full font-black text-[10px] tracking-widest uppercase">Export All Scores</button>
+                        <button onclick="triggerImport()" class="flex-1 bg-white/10 text-white px-8 py-3 rounded-full font-black text-[10px] tracking-widest uppercase border border-white/10">Import Data File</button>
+                        <button onclick="confirmReverseImport()" class="flex-1 bg-red-600/20 text-red-500 px-8 py-3 rounded-full font-black text-[10px] tracking-widest uppercase border border-red-500/30">Reverse Import</button>
+                    </div>
+                    <div class="mb-6">
+                        <input type="text" id="relay-search-bar" value="${relaySearchQuery}" oninput="relaySearchQuery = this.value; renderArena(); document.getElementById('relay-search-bar').focus();" placeholder="Filter Registry..." class="w-full bg-white/5 border border-white/10 rounded-full px-5 py-3 text-[10px] outline-none focus:border-orange-400 text-white uppercase tracking-widest">
+                    </div>
+                    <div class="space-y-2">
+                        ${heroes.map(h => `
+                            <div class="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                                <span class="text-xs font-bold text-white uppercase">${h.nickname || h.name}</span>
+                                <div class="flex items-center gap-4">
+                                    <span class="text-xl font-black text-orange-400">${h.score}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            const searchBar = document.getElementById('relay-search-bar');
+            if(searchBar) {
+                searchBar.focus();
+                searchBar.setSelectionRange(relaySearchQuery.length, relaySearchQuery.length);
+            }
+        }
+
+        function viewClusterMembers(cid) {
+            const cluster = state.active[currentKey].clusters.find(c => c.id === cid);
+            showModal(`
+                <div class="zenith-card p-10 text-center max-w-sm" onclick="event.stopPropagation()">
+                    <h2 class="font-['Orbitron'] text-cyan-400 font-black text-xl mb-6">CLUSTER ${cid} MANIFEST</h2>
+                    <div class="space-y-2 mb-8 scroller max-h-60 overflow-y-auto">${cluster.members.map(m => `<div class="text-sm uppercase opacity-70 text-white">${m.nickname || m.name} (${m.score} XP)</div>`).join('')}</div>
+                </div>
+            `);
+        }
+
+        function exitToMenu() { triggerLoading("DISCONNECTING...", () => location.reload()); }
+    </script>
+</body>
+</html>
