@@ -6,7 +6,6 @@
     <title>Cluster Quest | Encrypted Core</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Outfit:wght@300;600;900&display=swap" rel="stylesheet">
 
     <style>
@@ -891,15 +890,6 @@
                         <button onclick="triggerImport()" class="flex-1 bg-white/10 text-white px-8 py-3 rounded-full font-black text-[10px] tracking-widest uppercase border border-white/10">Import Data File</button>
                         <button onclick="confirmReverseImport()" class="flex-1 bg-red-600/20 text-red-500 px-8 py-3 rounded-full font-black text-[10px] tracking-widest uppercase border border-red-500/30">Reverse Import</button>
                     </div>
-                    
-                    <div class="bg-white/5 border border-cyan-400/30 p-6 rounded-3xl mb-8">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="font-['Orbitron'] text-cyan-400 text-[10px] font-black tracking-widest uppercase">Advanced Analytics</h3>
-                            <button onclick="generateAnalyticsReport()" class="bg-cyan-500 text-black px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-tighter hover:bg-white transition-all">Generate Visual Report</button>
-                        </div>
-                        <p class="text-[9px] opacity-40 text-white uppercase italic">Note: Clicking the button above will compile a full graphical representation of Cluster and Individual performance for presentation.</p>
-                    </div>
-                    
                     <div class="mb-6">
                         <input type="text" id="relay-search-bar" value="${relaySearchQuery}" oninput="relaySearchQuery = this.value; renderArena(); document.getElementById('relay-search-bar').focus();" placeholder="Filter Registry..." class="w-full bg-white/5 border border-white/10 rounded-full px-5 py-3 text-[10px] outline-none focus:border-orange-400 text-white uppercase tracking-widest">
                     </div>
@@ -922,103 +912,6 @@
             }
         }
 
-        // --- NEW FUNCTION: ANALYTICS GENERATOR ---
-        function generateAnalyticsReport() {
-            playSound('transition');
-            const q = state.active[currentKey];
-            
-            // Prepare Cluster Data
-            const clusterLabels = q.clusters.map(c => `CLUSTER ${c.id}`);
-            const clusterData = q.clusters.map(c => Math.round(c.members.reduce((s,m)=>s+m.score,0) * c.multiplier));
-            
-            // Prepare Individual Data (Top 10)
-            const sortedHeroes = q.clusters.flatMap(c => c.members).sort((a,b) => b.score - a.score).slice(0, 15);
-            const heroLabels = sortedHeroes.map(h => h.nickname || h.name);
-            const heroData = sortedHeroes.map(h => h.score);
-
-            showModal(`
-                <div class="zenith-card p-8 w-full max-w-5xl flex flex-col max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-                    <div class="flex justify-between items-center mb-8">
-                        <h2 class="font-['Orbitron'] text-cyan-400 text-xl font-black tracking-[0.3em] uppercase">PERFORMANCE DASHBOARD</h2>
-                        <button onclick="closeModal()" class="text-white/40 hover:text-white text-xs font-bold uppercase tracking-widest">Close ✕</button>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div class="bg-black/40 p-6 rounded-2xl border border-white/10">
-                            <h4 class="text-[10px] font-black text-white/60 mb-6 uppercase tracking-widest text-center">Cluster Distribution (Multiplied)</h4>
-                            <canvas id="chartClusters"></canvas>
-                        </div>
-
-                        <div class="bg-black/40 p-6 rounded-2xl border border-white/10">
-                            <h4 class="text-[10px] font-black text-white/60 mb-6 uppercase tracking-widest text-center">Top Performers Ranking</h4>
-                            <canvas id="chartIndividuals"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="mt-8 p-6 bg-cyan-500/5 rounded-2xl border border-cyan-500/20 text-center">
-                        <p class="text-[10px] text-cyan-400 font-black uppercase mb-2">Registry Summary</p>
-                        <div class="flex flex-wrap justify-center gap-6">
-                            <div class="flex flex-col"><span class="text-2xl font-black text-white">${q.clusters.length}</span><span class="text-[8px] opacity-40 uppercase">Total Clusters</span></div>
-                            <div class="flex flex-col"><span class="text-2xl font-black text-white">${q.clusters.reduce((s,c)=>s+c.members.length,0)}</span><span class="text-[8px] opacity-40 uppercase">Active Units</span></div>
-                            <div class="flex flex-col"><span class="text-2xl font-black text-white">${q.history.length}</span><span class="text-[8px] opacity-40 uppercase">XP Transactions</span></div>
-                        </div>
-                    </div>
-                </div>
-            `);
-
-            // Initialize Charts via Chart.js
-            const ctxC = document.getElementById('chartClusters').getContext('2d');
-            new Chart(ctxC, {
-                type: 'bar',
-                data: {
-                    labels: clusterLabels,
-                    datasets: [{
-                        label: 'Multiplied Score',
-                        data: clusterData,
-                        backgroundColor: 'rgba(0, 243, 255, 0.4)',
-                        borderColor: '#00f3ff',
-                        borderWidth: 2,
-                        borderRadius: 10
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'white' } },
-                        x: { grid: { display: false }, ticks: { color: 'white', font: { size: 8 } } }
-                    }
-                }
-            });
-
-            const ctxI = document.getElementById('chartIndividuals').getContext('2d');
-            new Chart(ctxI, {
-                type: 'line',
-                data: {
-                    labels: heroLabels,
-                    datasets: [{
-                        label: 'Individual XP',
-                        data: heroData,
-                        fill: true,
-                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                        borderColor: '#f97316',
-                        tension: 0.4,
-                        pointBackgroundColor: '#fff',
-                        pointBorderColor: '#f97316',
-                        pointHoverRadius: 6
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'white' } },
-                        x: { grid: { display: false }, ticks: { color: 'white', font: { size: 8 } } }
-                    }
-                }
-            });
-        }
-
         function viewClusterMembers(cid) {
             const cluster = state.active[currentKey].clusters.find(c => c.id === cid);
             showModal(`
@@ -1032,6 +925,5 @@
         function exitToMenu() { triggerLoading("DISCONNECTING...", () => location.reload()); }
     </script>
 </body>
+
 </html>
-
-
